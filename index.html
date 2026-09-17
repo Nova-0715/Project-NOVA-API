@@ -244,6 +244,11 @@ const factors=[["price","가격계열"],["supply","수급계열"],["policy","정
 const dotColor=s=>s>=80?"#3dba8e":s>=65?"#ffb648":"#ff6b4a";
 const rankColor=i=>["#3dba8e","#ffb648","#ff6b4a"][i]||"#a69e97";
 const scoreColor=s=>s>=80?"var(--success)":s>=65?"var(--warning)":"var(--danger)";
+const fmtDate=s=>{
+  if(!s) return s;
+  const m = String(s).match(/^(\d{4})(\d{2})(\d{2})$/);
+  return m ? `${m[1]}.${m[2]}.${m[3]}` : s;
+};
 
 /* ---------------- views ---------------- */
 function topBar(){
@@ -319,7 +324,7 @@ function homeView(){
   <section class="sec" style="margin-bottom:8px">
     <div class="sec-h" style="justify-content:space-between">
       <span style="display:flex;align-items:center;gap:6px">${ic("chart")}금리·거시지표</span>
-      <span style="font-size:10.5px;font-weight:500;color:var(--text-muted)">${liveBaseRate.loaded?liveBaseRate.date:macro.updatedAt}</span>
+      <span style="font-size:10.5px;font-weight:500;color:var(--text-muted)">${liveBaseRate.loaded?fmtDate(liveBaseRate.date):macro.updatedAt}</span>
     </div>
     <div class="feed" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
       <span style="font-size:12.5px">기준금리 <b>${liveBaseRate.loaded&&liveBaseRate.value!=null?liveBaseRate.value:macro.baseRate.value}%</b>
