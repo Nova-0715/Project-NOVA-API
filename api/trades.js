@@ -16,36 +16,51 @@ module.exports = async (req, res) => {
     { code: '11740', name: '강동구' },
   ];
 
-  const now = new Date();
-  const ym = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+  // 쿼리로 ?ym=202608 처럼 직접 지정 가능, 없으면 "지난달"을 기본값으로
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() - 1);
+  const ym = req.query.ym || `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const debug = req.query.debug === '1';
 
   async function fetchRegion(region) {
     const url = `https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade/getRTMSDataSvcAptTrade?serviceKey=${apiKey}&LAWD_CD=${region.code}&DEAL_YMD=${ym}&numOfRows=100&pageNo=1&_type=json`;
     try {
       const r = await fetch(url);
-      const data = await r.json();
+      const text = await r.text();
+      let data;
+      try { data = JSON.parse(text); } catch { return { error: true, raw: text.slice(0, 300), region: region.name }; }
+      const header = data?.response?.header;
       let items = data?.response?.body?.items?.item || [];
       if (!Array.isArray(items)) items = [items];
-      return items.map((it) => ({
-        region: `서울 ${region.name}`,
-        dong: (it.법정동 || '').trim(),
-        apt: it.아파트,
-        area: Number(it.전용면적),
-        floor: it.층,
-        price: Number(String(it.거래금액).replace(/,/g, '').trim()),
-        date: `${it.년}.${String(it.월).padStart(2, '0')}.${String(it.일).padStart(2, '0')}`,
-      }));
+      return {
+        error: false, header, region: region.name,
+        items: items.map((it) => ({
+          region: `서울 ${region.name}`,
+          dong: (it.법정동 || '').trim(),
+          apt: it.아파트,
+          area: Number(it.전용면적),
+          floor: it.층,
+          price: Number(String(it.거래금액).replace(/,/g, '').trim()),
+          date: `${it.년}.${String(it.월).padStart(2, '0')}.${String(it.일).padStart(2, '0')}`,
+        })),
+      };
     } catch (e) {
-      return [];
+      return { error: true, raw: String(e), region: region.name };
     }
   }
 
   try {
+    if (debug) {
+      // 디버그 모드: 강남구 하나만 원본 그대로 확인
+      const r = await fetchRegion({ code: '11680', name: '강남구' });
+      return res.status(200).json({ ym, ...r });
+    }
     const results = await Promise.all(REGIONS.map(fetchRegion));
-    const all = results.flat()
+    const all = results.flatMap((r) => r.items || [])
       .sort((a, b) => b.date.localeCompare(a.date))
       .slice(0, 20);
-    res.status(200).json({ count: all.length, items: all });
+    res.status(200).json({ ym, count: all.length, items: all });
   } catch (e) {
     res.status(500).json({ error: '데이터를 불러오지 못했습니다' });
   }
