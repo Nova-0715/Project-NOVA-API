@@ -235,6 +235,7 @@ function lineChart(rows,keys,{w=300,h=130,pad=26,yLabels=false}={}){
 /* ---------------- state ---------------- */
 let menuOpen=false, mapOpen=false, newsTab="realestate", alertOpen=false, districtFilter="전체";
 let liveBaseRate={value:null,date:null,loaded:false};
+let liveTrades={items:[],loaded:false};
 let mapPan={x:0,y:0};
 let checklistScores=[3,3,3,3,3];
 let weights={price:20,supply:25,policy:10,infra:15,population:10,risk:20};
@@ -244,6 +245,20 @@ const factors=[["price","가격계열"],["supply","수급계열"],["policy","정
 const dotColor=s=>s>=80?"#3dba8e":s>=65?"#ffb648":"#ff6b4a";
 const rankColor=i=>["#3dba8e","#ffb648","#ff6b4a"][i]||"#a69e97";
 const scoreColor=s=>s>=80?"var(--success)":s>=65?"var(--warning)":"var(--danger)";
+const fmtDate=s=>{
+  if(!s) return s;
+  const m = String(s).match(/^(\d{4})(\d{2})(\d{2})$/);
+  return m ? `${m[1]}.${m[2]}.${m[3]}` : s;
+};
+const fmtPrice=p=>{
+  if(p==null||isNaN(p)) return "-";
+  if(p>=10000){
+    const eok = p/10000;
+    const str = Number.isInteger(eok) ? String(eok) : eok.toFixed(2).replace(/0+$/,"").replace(/\.$/,"");
+    return str+"억";
+  }
+  return p.toLocaleString()+"만";
+};
 
 /* ---------------- views ---------------- */
 function topBar(){
@@ -309,17 +324,23 @@ function homeView(){
   <section class="sec">
     <div class="sec-h" style="justify-content:space-between">
       <span style="display:flex;align-items:center;gap:6px">${ic("bell")}최근 실거래 피드</span>
-      <span style="font-size:10.5px;font-weight:500;color:var(--text-muted)">${feedUpdatedAt}</span>
+      <span style="font-size:10.5px;font-weight:500;color:${liveTrades.loaded?"var(--success)":"var(--text-muted)"}">${liveTrades.loaded?"실시간":feedUpdatedAt}</span>
     </div>
-    <div class="stack">${transactionFeed.map(t=>`<div class="feed">
-      <p style="font-size:13px;margin:0">${t.title} <b style="color:${t.trend==="up"?"var(--success)":"var(--danger)"}">${t.price}</b> 신고</p>
-      <p class="s" style="font-size:11px;color:var(--text-muted);margin:2px 0 0">${t.when} · ${t.change}</p></div>`).join("")}</div>
+    <div class="stack">${
+      liveTrades.loaded && liveTrades.items.length
+      ? liveTrades.items.slice(0,10).map(t=>`<div class="feed">
+          <p style="font-size:13px;margin:0">${t.region} ${t.dong} · ${t.apt} <b style="color:var(--accent)">${fmtPrice(t.price)}</b> 신고</p>
+          <p class="s" style="font-size:11px;color:var(--text-muted);margin:2px 0 0">${t.area}㎡ · ${t.floor}층 · ${fmtDate(t.date.replace(/\./g,""))}</p></div>`).join("")
+      : transactionFeed.map(t=>`<div class="feed">
+          <p style="font-size:13px;margin:0">${t.title} <b style="color:${t.trend==="up"?"var(--success)":"var(--danger)"}">${t.price}</b> 신고</p>
+          <p class="s" style="font-size:11px;color:var(--text-muted);margin:2px 0 0">${t.when} · ${t.change} <span style="color:var(--text-muted)">(예시값)</span></p></div>`).join("")
+    }</div>
   </section>
 
   <section class="sec" style="margin-bottom:8px">
     <div class="sec-h" style="justify-content:space-between">
       <span style="display:flex;align-items:center;gap:6px">${ic("chart")}금리·거시지표</span>
-      <span style="font-size:10.5px;font-weight:500;color:var(--text-muted)">${liveBaseRate.loaded?liveBaseRate.date:macro.updatedAt}</span>
+      <span style="font-size:10.5px;font-weight:500;color:var(--text-muted)">${liveBaseRate.loaded?fmtDate(liveBaseRate.date):macro.updatedAt}</span>
     </div>
     <div class="feed" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
       <span style="font-size:12.5px">기준금리 <b>${liveBaseRate.loaded&&liveBaseRate.value!=null?liveBaseRate.value:macro.baseRate.value}%</b>
@@ -467,6 +488,20 @@ async function loadBaseRate(){
   }
 }
 loadBaseRate();
+
+async function loadTrades(){
+  try{
+    const r = await fetch("/api/trades");
+    const d = await r.json();
+    if(d && Array.isArray(d.items)){
+      liveTrades = {items:d.items, loaded:true};
+      render();
+    }
+  }catch(e){
+    // 실패하면 예시값을 그대로 보여줌 (조용히 무시)
+  }
+}
+loadTrades();
 render();
 </script>
 </body>
