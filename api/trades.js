@@ -32,7 +32,7 @@ module.exports = async (req, res) => {
         apt: it.aptNm,
         area: Number(it.excluUseAr),
         floor: it.floor,
-        price: Number(it.dealAmount), // 만원 단위
+        price: Number(String(it.dealAmount).replace(/,/g, '').trim()),
         date: `${it.dealYear}.${String(it.dealMonth).padStart(2, '0')}.${String(it.dealDay).padStart(2, '0')}`,
       }));
     } catch (e) {
