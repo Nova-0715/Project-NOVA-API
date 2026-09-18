@@ -265,6 +265,7 @@ function topBar(){
   const items=[["#/gap","갭투자 분석","swap",1],["#/trend","최근 10년 시세동향","trend",0],
                ["#/news","뉴스","news",0],
                ["#/#subscriptions","청약 정보","ticket",0],["#/#ranking","후보지 순위","trophy",0],
+               ["#/trades","실거래 피드","bell",0],
                ["#/checklist","임장 체크리스트","clip",0]];
   return `<div class="topbar">
     <button class="sq s2" aria-label="메뉴 열기" aria-expanded="${menuOpen}" data-act="menu" style="color:var(--accent)">${ic(menuOpen?"x":"menu")}</button>
@@ -324,14 +325,17 @@ function homeView(){
   <section class="sec">
     <div class="sec-h" style="justify-content:space-between">
       <span style="display:flex;align-items:center;gap:6px">${ic("bell")}최근 실거래 피드</span>
-      <span style="font-size:10.5px;font-weight:500;color:${liveTrades.loaded?"var(--success)":"var(--text-muted)"}">${liveTrades.loaded?"실시간":feedUpdatedAt}</span>
+      <span style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:10.5px;font-weight:500;color:${liveTrades.loaded?"var(--success)":"var(--text-muted)"}">${liveTrades.loaded?"실시간":feedUpdatedAt}</span>
+        <a href="#/trades" style="font-size:11px;font-weight:600;color:var(--text-muted)">더보기 ›</a>
+      </span>
     </div>
     <div class="stack">${
       liveTrades.loaded && liveTrades.items.length
-      ? liveTrades.items.slice(0,10).map(t=>`<div class="feed">
+      ? liveTrades.items.slice(0,3).map(t=>`<div class="feed">
           <p style="font-size:13px;margin:0">${t.region} ${t.dong} · ${t.apt} <b style="color:var(--accent)">${fmtPrice(t.price)}</b> 신고</p>
           <p class="s" style="font-size:11px;color:var(--text-muted);margin:2px 0 0">${t.area}㎡ · ${t.floor}층 · ${fmtDate(t.date.replace(/\./g,""))}</p></div>`).join("")
-      : transactionFeed.map(t=>`<div class="feed">
+      : transactionFeed.slice(0,3).map(t=>`<div class="feed">
           <p style="font-size:13px;margin:0">${t.title} <b style="color:${t.trend==="up"?"var(--success)":"var(--danger)"}">${t.price}</b> 신고</p>
           <p class="s" style="font-size:11px;color:var(--text-muted);margin:2px 0 0">${t.when} · ${t.change} <span style="color:var(--text-muted)">(예시값)</span></p></div>`).join("")
     }</div>
@@ -402,6 +406,20 @@ function newsView(){
     <p class="s" style="font-size:11px;color:var(--text-muted);margin:2px 0 0">${n.source} · ${n.when}</p></div>`).join("")}</div>
   <div class="note" style="margin-top:16px">지금은 예시 뉴스입니다. 실제 서비스에서는 뉴스 API·RSS를 카테고리별로 연결해 이 목록을 자동 갱신하세요.</div>`;
 }
+function tradesView(){
+  const live = liveTrades.loaded && liveTrades.items.length;
+  return `<div class="head"><a class="back" href="#/">${ic("back")}</a>
+    <div><p class="t">최근 실거래 피드</p><p class="s">${live?"서울 25개 구 · 실시간":"예시 데이터"}</p></div></div>
+  <div class="stack">${
+    live
+    ? liveTrades.items.map(t=>`<div class="feed">
+        <p style="font-size:13px;margin:0">${t.region} ${t.dong} · ${t.apt} <b style="color:var(--accent)">${fmtPrice(t.price)}</b> 신고</p>
+        <p class="s" style="font-size:11px;color:var(--text-muted);margin:2px 0 0">${t.area}㎡ · ${t.floor}층 · ${fmtDate(t.date.replace(/\./g,""))}</p></div>`).join("")
+    : transactionFeed.map(t=>`<div class="feed">
+        <p style="font-size:13px;margin:0">${t.title} <b style="color:${t.trend==="up"?"var(--success)":"var(--danger)"}">${t.price}</b> 신고</p>
+        <p class="s" style="font-size:11px;color:var(--text-muted);margin:2px 0 0">${t.when} · ${t.change} <span style="color:var(--text-muted)">(예시값)</span></p></div>`).join("")
+  }</div>`;
+}
 function checklistView(){
   const avg=(checklistScores.reduce((a,b)=>a+b,0)/checklistScores.length).toFixed(1);
   return `<div class="head"><a class="back" href="#/">${ic("back")}</a><p class="t">임장 체크리스트</p></div>
@@ -428,6 +446,7 @@ function render(){
   else if(h.startsWith("gap")) app.innerHTML=gapView();
   else if(h.startsWith("trend")) app.innerHTML=trendView();
   else if(h.startsWith("news")) app.innerHTML=newsView();
+  else if(h.startsWith("trades")) app.innerHTML=tradesView();
   else if(h.startsWith("checklist")) app.innerHTML=checklistView();
   else if(h.startsWith("settings")) app.innerHTML=settingsView();
   else{
@@ -437,7 +456,11 @@ function render(){
   }
 }
 document.addEventListener("click",e=>{
-  const t=e.target.closest("[data-act]"); if(!t) return;
+  const t=e.target.closest("[data-act]");
+  let needRender=false;
+  if(menuOpen && !e.target.closest(".menu") && !e.target.closest('[data-act="menu"]')){menuOpen=false; needRender=true;}
+  if(alertOpen && !e.target.closest(".alertpanel") && !e.target.closest('[data-act="alert"]')){alertOpen=false; needRender=true;}
+  if(!t){ if(needRender) render(); return; }
   const a=t.dataset.act;
   if(a==="menu"){menuOpen=!menuOpen;alertOpen=false;render();}
   else if(a==="close"){menuOpen=false;setTimeout(render,0);}
