@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>임장 후보 대시보드</title>
+<script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=a76cafb2daec55e578fcf1af05b6d071&autoload=false&libraries=services"></script>
 <style>
   :root{
     --background:#ffffff; --surface:#fbf6f2; --surface-2:#fff9f5;
@@ -63,13 +64,7 @@
 
   .mapbox{position:relative;height:170px;overflow:hidden;border-radius:14px;background:var(--surface);transition:height .25s ease}
   .mapbox.expanded{height:340px}
-  .mapinner{position:absolute;inset:-40%;touch-action:none;
-    cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%23ff6b4a' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 8 8, pointer;
-    background-image:linear-gradient(0deg,rgba(0,0,0,.035) 1px,transparent 1px),
-                      linear-gradient(90deg,rgba(0,0,0,.035) 1px,transparent 1px);
-    background-size:28px 28px}
-  .dot{position:absolute;height:14px;width:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.15)}
-  .mapnote{position:absolute;bottom:8px;right:12px;font-size:10px;color:var(--text-muted)}
+  .mapnote{position:absolute;bottom:8px;right:12px;font-size:10px;color:var(--text-muted);background:rgba(255,255,255,.85);padding:2px 6px;border-radius:6px;z-index:5;pointer-events:none}
 
   .row{display:flex;align-items:center;justify-content:space-between;border-radius:14px;background:var(--surface-2);padding:13px 16px}
   .row .n{font-size:13px;font-weight:500;margin:0}
@@ -139,17 +134,17 @@
 const candidates = [
   {id:"a-apt",name:"A아파트",district:"성남시 분당구",builtYear:2016,score:89,jeonseRatio:68,
    supplyStatus:"여유",regulation:"해당없음",reconstructionStage:"해당없음",note:"전세가율 68% · 입주물량 여유",
-   lat:30,lng:20,scores:{price:82,supply:88,policy:90,infra:85,population:91,risk:20},
+   mapLat:37.3827,mapLng:127.1188,scores:{price:82,supply:88,policy:90,infra:85,population:91,risk:20},
    scenario:[{year:"현재",conservative:100,neutral:100,optimistic:100},{year:"1년",conservative:102,neutral:106,optimistic:111},
              {year:"2년",conservative:104,neutral:112,optimistic:121},{year:"3년",conservative:107,neutral:118,optimistic:132}]},
   {id:"b-danji",name:"B단지",district:"수원시 영통구",builtYear:2019,score:74,jeonseRatio:61,
    supplyStatus:"보통",regulation:"해당없음",reconstructionStage:"해당없음",note:"교통호재 상 · 학군 중",
-   lat:60,lng:45,scores:{price:70,supply:65,policy:80,infra:88,population:72,risk:35},
+   mapLat:37.2429,mapLng:127.0688,scores:{price:70,supply:65,policy:80,infra:88,population:72,risk:35},
    scenario:[{year:"현재",conservative:100,neutral:100,optimistic:100},{year:"1년",conservative:99,neutral:104,optimistic:108},
              {year:"2년",conservative:101,neutral:109,optimistic:116},{year:"3년",conservative:103,neutral:114,optimistic:124}]},
   {id:"c-jigu",name:"C지구",district:"용인시 기흥구",builtYear:2014,score:58,jeonseRatio:55,
    supplyStatus:"과잉",regulation:"조정대상지역",reconstructionStage:"해당없음",note:"미분양 잔존 · 리스크 주의",
-   lat:80,lng:65,scores:{price:55,supply:40,policy:45,infra:60,population:58,risk:70},
+   mapLat:37.2749,mapLng:127.1153,scores:{price:55,supply:40,policy:45,infra:60,population:58,risk:70},
    scenario:[{year:"현재",conservative:100,neutral:100,optimistic:100},{year:"1년",conservative:94,neutral:99,optimistic:103},
              {year:"2년",conservative:90,neutral:100,optimistic:108},{year:"3년",conservative:88,neutral:102,optimistic:114}]},
 ];
@@ -236,13 +231,11 @@ function lineChart(rows,keys,{w=300,h=130,pad=26,yLabels=false}={}){
 let menuOpen=false, mapOpen=false, newsTab="realestate", alertOpen=false, districtFilter="전체";
 let liveBaseRate={value:null,date:null,loaded:false};
 let liveTrades={items:[],loaded:false};
-let mapPan={x:0,y:0};
 let checklistScores=[3,3,3,3,3];
 let weights={price:20,supply:25,policy:10,infra:15,population:10,risk:20};
 const checklistItems=["일조·소음","동간거리·주차 여건","매물 컨디션(수리 이력, 누수/결로)","중개소 인터뷰(실거래 강도, 급매 여부)","주변 상권·생활 인프라 체감"];
 const factors=[["price","가격계열"],["supply","수급계열"],["policy","정책계열"],["infra","인프라계열"],["population","인구·자금계열"],["risk","리스크계열"]];
 
-const dotColor=s=>s>=80?"#3dba8e":s>=65?"#ffb648":"#ff6b4a";
 const rankColor=i=>["#3dba8e","#ffb648","#ff6b4a"][i]||"#a69e97";
 const scoreColor=s=>s>=80?"var(--success)":s>=65?"var(--warning)":"var(--danger)";
 const fmtDate=s=>{
@@ -299,10 +292,8 @@ function homeView(){
       <span>${ic("map","a")}후보지 지도</span>${ic(mapOpen?"up":"down","m")}
     </button>
     <div class="mapbox${mapOpen?" expanded":""}">
-      <div class="mapinner" style="transform:translate(${mapPan.x}px,${mapPan.y}px)">
-        ${filtered.map(c=>`<div class="dot" title="${c.name}" style="top:${c.lat}%;left:${c.lng}%;background:${dotColor(c.score)}"></div>`).join("")}
-      </div>
-      <span class="mapnote">${mapOpen?"드래그해서 이동 · 카카오맵 연동 예정":"탭하면 크게 보기"}</span></div>
+      <div id="kakaomap" style="position:absolute;inset:0"></div>
+      <span class="mapnote">${mapOpen?"드래그해서 이동 · 확대/축소 가능":"탭하면 크게 보기"}</span></div>
   </div>
 
   <section class="sec" id="subscriptions">
@@ -454,6 +445,7 @@ function render(){
     app.innerHTML=homeView();
     const anchor=h.replace(/^#/,"");
     if(anchor) document.getElementById(anchor)?.scrollIntoView({behavior:"smooth"});
+    renderKakaoMap();
   }
 }
 document.addEventListener("click",e=>{
@@ -467,7 +459,7 @@ document.addEventListener("click",e=>{
   else if(a==="close"){menuOpen=false;setTimeout(render,0);}
   else if(a==="alert"){alertOpen=!alertOpen;menuOpen=false;render();}
   else if(a==="aclose"){alertOpen=false;setTimeout(render,0);}
-  else if(a==="map"){mapOpen=!mapOpen;mapPan={x:0,y:0};render();}
+  else if(a==="map"){mapOpen=!mapOpen;render();setTimeout(()=>renderKakaoMap(),260);}
   else if(a==="ck"){checklistScores[+t.dataset.i]=+t.dataset.v;render();}
   else if(a==="newstab"){newsTab=t.dataset.k;render();}
   else if(a==="filter"){districtFilter=t.dataset.d;render();}
@@ -479,24 +471,34 @@ document.addEventListener("input",e=>{
 });
 window.addEventListener("hashchange",render);
 
-/* ---------------- map drag (pan) ---------------- */
-let mapDrag=null;
-const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
-document.addEventListener("pointerdown",e=>{
-  const el=e.target.closest(".mapinner"); if(!el) return;
-  const box=el.parentElement.getBoundingClientRect();
-  mapDrag={startX:e.clientX,startY:e.clientY,baseX:mapPan.x,baseY:mapPan.y,
-           boundX:box.width*0.35,boundY:box.height*0.35};
-});
-document.addEventListener("pointermove",e=>{
-  if(!mapDrag) return;
-  const el=document.querySelector(".mapinner"); if(!el) return;
-  mapPan.x=clamp(mapDrag.baseX+(e.clientX-mapDrag.startX),-mapDrag.boundX,mapDrag.boundX);
-  mapPan.y=clamp(mapDrag.baseY+(e.clientY-mapDrag.startY),-mapDrag.boundY,mapDrag.boundY);
-  el.style.transform=`translate(${mapPan.x}px,${mapPan.y}px)`;
-});
-document.addEventListener("pointerup",()=>{mapDrag=null;});
-document.addEventListener("pointercancel",()=>{mapDrag=null;});
+/* ---------------- 카카오맵 ---------------- */
+let kakaoReady=false;
+let kakaoMap=null;
+if(window.kakao && window.kakao.maps){
+  kakao.maps.load(()=>{ kakaoReady=true; renderKakaoMap(); });
+}
+function renderKakaoMap(){
+  if(!kakaoReady) return;
+  const box=document.getElementById("kakaomap");
+  if(!box) return; // 지금 화면이 홈이 아니면 지도 컨테이너가 없음
+  const ranked=[...candidates].sort((a,b)=>b.score-a.score).map((c,i)=>({...c,rank:i+1}));
+  const filtered=districtFilter==="전체"?ranked:ranked.filter(c=>c.district.startsWith(districtFilter));
+  const center=filtered[0]
+    ? new kakao.maps.LatLng(filtered[0].mapLat,filtered[0].mapLng)
+    : new kakao.maps.LatLng(37.35,127.10);
+  kakaoMap=new kakao.maps.Map(box,{center, level: mapOpen?8:9});
+  const bounds=new kakao.maps.LatLngBounds();
+  filtered.forEach(c=>{
+    const pos=new kakao.maps.LatLng(c.mapLat,c.mapLng);
+    bounds.extend(pos);
+    const marker=new kakao.maps.Marker({position:pos, map:kakaoMap, title:c.name});
+    const iw=new kakao.maps.InfoWindow({content:`<div style="padding:6px 10px;font-size:12px;white-space:nowrap">${c.name} · ${c.score}점</div>`});
+    kakao.maps.event.addListener(marker,"mouseover",()=>iw.open(kakaoMap,marker));
+    kakao.maps.event.addListener(marker,"mouseout",()=>iw.close());
+    kakao.maps.event.addListener(marker,"click",()=>{ location.hash=`#/candidates/${c.id}`; });
+  });
+  if(filtered.length>1) kakaoMap.setBounds(bounds);
+}
 
 /* ---------------- 실시간 기준금리 불러오기 ---------------- */
 async function loadBaseRate(){
