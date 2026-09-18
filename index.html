@@ -291,6 +291,7 @@ function homeView(){
   const ranked = [...candidates].sort((a,b)=>b.score-a.score).slice(0,100).map((c,i)=>({...c,rank:i+1}));
   const filtered = districtFilter==="전체"?ranked:ranked.filter(c=>c.district.startsWith(districtFilter));
   const avgScore = Math.round(candidates.reduce((a,c)=>a+c.score,0)/candidates.length);
+  const tradesLive = liveTrades.loaded && liveTrades.items.length>0;
   return topBar()+`
   <div class="summarybar">관심 후보지 <b>${candidates.length}곳</b> · 평균 스코어 <b>${avgScore}</b> · 최근 갱신 ${feedUpdatedAt}</div>
   <div class="card">
@@ -326,12 +327,12 @@ function homeView(){
     <div class="sec-h" style="justify-content:space-between">
       <span style="display:flex;align-items:center;gap:6px">${ic("bell")}최근 실거래 피드</span>
       <span style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:10.5px;font-weight:500;color:${liveTrades.loaded?"var(--success)":"var(--text-muted)"}">${liveTrades.loaded?"실시간":feedUpdatedAt}</span>
+        <span style="font-size:10.5px;font-weight:500;color:${tradesLive?"var(--success)":"var(--text-muted)"}">${tradesLive?"실시간":feedUpdatedAt}</span>
         <a href="#/trades" style="font-size:11px;font-weight:600;color:var(--text-muted)">더보기 ›</a>
       </span>
     </div>
     <div class="stack">${
-      liveTrades.loaded && liveTrades.items.length
+      tradesLive
       ? liveTrades.items.slice(0,3).map(t=>`<div class="feed">
           <p style="font-size:13px;margin:0">${t.region} ${t.dong} · ${t.apt} <b style="color:var(--accent)">${fmtPrice(t.price)}</b> 신고</p>
           <p class="s" style="font-size:11px;color:var(--text-muted);margin:2px 0 0">${t.area}㎡ · ${t.floor}층 · ${fmtDate(t.date.replace(/\./g,""))}</p></div>`).join("")
