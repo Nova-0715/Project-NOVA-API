@@ -16,10 +16,15 @@ module.exports = async (req, res) => {
     { code: '11740', name: '강동구' },
   ];
 
-  const now = new Date();
-  const ym = req.query.ym || `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+  // "202609" -> "202608" 처럼 한 달 전 연월을 계산
+  function prevYm(ym) {
+    const y = parseInt(ym.slice(0, 4), 10);
+    const m = parseInt(ym.slice(4, 6), 10);
+    const d = new Date(y, m - 2, 1); // m-1 = 이번달 index, 한 달 더 빼서 지난달
+    return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
 
-  async function fetchRegion(region) {
+  async function fetchRegionMonth(region, ym) {
     const url = `https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev?serviceKey=${apiKey}&LAWD_CD=${region.code}&DEAL_YMD=${ym}&numOfRows=100&pageNo=1&_type=json`;
     try {
       const r = await fetch(url);
@@ -40,12 +45,31 @@ module.exports = async (req, res) => {
     }
   }
 
+  async function fetchAllRegions(ym) {
+    const results = await Promise.all(REGIONS.map((region) => fetchRegionMonth(region, ym)));
+    return results.flat();
+  }
+
+  const now = new Date();
+  const ymParam = req.query.ym;
+  const currentYm = ymParam || `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+
   try {
-    const results = await Promise.all(REGIONS.map(fetchRegion));
-    const all = results.flat()
-      .sort((a, b) => b.date.localeCompare(a.date))
-      .slice(0, 20);
-    res.status(200).json({ ym, count: all.length, items: all });
+    let all = await fetchAllRegions(currentYm);
+    const ymsUsed = [currentYm];
+
+    // ym을 직접 지정한 게 아니고, 이번 달 데이터가 20건이 안 되면 지난달 것도 채워온다
+    if (!ymParam && all.length < 20) {
+      const pYm = prevYm(currentYm);
+      const prevItems = await fetchAllRegions(pYm);
+      all = all.concat(prevItems);
+      ymsUsed.push(pYm);
+    }
+
+    all.sort((a, b) => b.date.localeCompare(a.date));
+    all = all.slice(0, 20);
+
+    res.status(200).json({ yms: ymsUsed, count: all.length, items: all });
   } catch (e) {
     res.status(500).json({ error: '데이터를 불러오지 못했습니다' });
   }
